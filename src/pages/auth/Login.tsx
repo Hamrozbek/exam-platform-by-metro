@@ -21,7 +21,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const data = await apiFetch("users/login/", {
+      const data = await apiFetch("users/login", {
         method: "POST",
         body: JSON.stringify({
           username: username.trim(),

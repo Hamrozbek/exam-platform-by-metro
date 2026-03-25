@@ -1,4 +1,3 @@
-// Vercel-dagi VITE_API_URL qiymati faqat "/api" bo'lishi kerak
 const BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 export const getTokens = () => ({
@@ -8,13 +7,11 @@ export const getTokens = () => ({
 
 const getFullUrl = (endpoint: string) => {
     const cleanBase = BASE_URL.replace(/\/+$/, "");
+    // endpoint boshidagi va oxiridagi slash-larni olib tashla, keyin bitta '/' qo'sh
     const cleanEndpoint = endpoint.replace(/^\/+|\/+$/g, "");
-
-    // MUHIM: Oxiri doim '/' bilan tugashi shart
     return `${cleanBase}/${cleanEndpoint}/`;
 };
 
-// 1. Oddiy JSON so'rovlar uchun
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     const { access } = getTokens();
     const fullUrl = getFullUrl(endpoint);
@@ -35,7 +32,6 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     return response.json();
 };
 
-// 2. Fayl yuklash uchun
 export const apiUpload = async (endpoint: string, formData: FormData) => {
     const { access } = getTokens();
     const fullUrl = getFullUrl(endpoint);
