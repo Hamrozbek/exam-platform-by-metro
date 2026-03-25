@@ -3,11 +3,6 @@ import ProtectedRoute from './ProtectedRoute';
 import Login from '../pages/auth/Login';
 import Superadmindashboard from '../pages/admin/Superadmindashboard';
 
-// import AdminExams from '../pages/admin/Exams';
-// import ManagerResults from '../pages/manager/Results';
-// import UserWelcome from '../pages/user/Welcome';
-// import UserQuiz from '../pages/user/Quiz';
-
 const AppRouter = () => {
     return (
         <Routes>
