@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Input, Modal, Form, App, Space } from 'antd';
+import { Table, Button, Input, Modal, Form, Space } from 'antd';
 import {
     PlusOutlined,
     DeleteOutlined,
@@ -14,7 +14,6 @@ import { toast } from 'sonner';
 
 
 const DepartmentsSection: React.FC = () => {
-    const { modal } = App.useApp();
     const [loading, setLoading] = useState(false);
     const [departments, setDepartments] = useState([]);
     const [searchText, setSearchText] = useState('');

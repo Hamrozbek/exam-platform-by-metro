@@ -9,7 +9,8 @@ import {
 import { toast } from 'sonner';
 
 // Bo'limlar (Sizdagi index.ts dan import qilinadi)
-import { DepartmentsSection, ExamsSection, HomeSection, ManagersSection, UsersSection } from './index';
+import { DepartmentsSection, ExamsSection, HomeSection, ManagersSection, UsersSection } from "./index"
+
 
 const { Sider, Content } = Layout;
 

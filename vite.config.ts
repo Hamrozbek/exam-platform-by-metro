@@ -6,5 +6,25 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [
     tailwindcss(),
-    react()],
+    react()
+  ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Kutubxonalarni alohida chunklarga bo'lish
+          if (id.includes('node_modules')) {
+            if (id.includes('antd')) {
+              return 'antd';
+            }
+            if (id.includes('@ant-design')) {
+              return 'ant-icons';
+            }
+            return 'vendor'; // qolgan barcha kutubxonalar uchun
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000, // Ogohlantirish limitini 1MB ga ko'tarish
+  },
 })
