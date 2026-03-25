@@ -7,12 +7,10 @@ export const getTokens = () => ({
 });
 
 const getFullUrl = (endpoint: string) => {
-    // Boshidagi va oxiridagi slashlarni tozalaymiz
     const cleanBase = BASE_URL.replace(/\/+$/, "");
     const cleanEndpoint = endpoint.replace(/^\/+|\/+$/g, "");
 
-    // Yakuniy URL: /api/users/login/
-    // Vercel buni avtomatik http://13.60.163.115:8000/api/v1/users/login/ ga aylantiradi
+    // MUHIM: Oxiri doim '/' bilan tugashi shart
     return `${cleanBase}/${cleanEndpoint}/`;
 };
 
