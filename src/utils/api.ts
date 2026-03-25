@@ -1,4 +1,3 @@
-// utils/api.ts
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const getTokens = () => ({
@@ -6,11 +5,14 @@ export const getTokens = () => ({
     refresh: localStorage.getItem("refresh_token"),
 });
 
-// URL ni tozalash uchun yordamchi funksiya
 const getFullUrl = (endpoint: string) => {
     const cleanBase = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+    // Endpoint boshidagi slashni olib tashlaymiz
     let cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-    if (!cleanEndpoint.endsWith('/') && !cleanEndpoint.includes('.')) {
+
+    // MUHIM: Dokumentatsiyada hamma joyda oxirida slash bor. 
+    // Shuning uchun biz ham majburiy qo'shamiz.
+    if (!cleanEndpoint.endsWith('/')) {
         cleanEndpoint += '/';
     }
 
@@ -27,48 +29,18 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
         ...options.headers,
     };
 
-    const response = await fetch(fullUrl, {
-        ...options,
-        headers
-    });
+    const response = await fetch(fullUrl, { ...options, headers });
 
     if (response.status === 401) {
         localStorage.clear();
-        if (window.location.pathname !== '/login') {
-            window.location.href = "/login";
-        }
+        if (window.location.pathname !== '/login') window.location.href = "/login";
         throw new Error("Sessiya muddati tugadi");
     }
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        // Django odatda xatoni 'detail' ichida qaytaradi
         throw new Error(errorData.detail || errorData.message || "Xatolik yuz berdi");
-    }
-
-    return response.json();
-};
-
-export const apiUpload = async (endpoint: string, formData: FormData) => {
-    const { access } = getTokens();
-    const fullUrl = getFullUrl(endpoint);
-
-    const response = await fetch(fullUrl, {
-        method: "POST",
-        headers: {
-            ...(access && { Authorization: `Bearer ${access}` }),
-        },
-        body: formData,
-    });
-
-    if (response.status === 401) {
-        localStorage.clear();
-        window.location.href = "/login";
-        throw new Error("Sessiya muddati tugadi");
-    }
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || errorData.message || "Fayl yuklashda xatolik");
     }
 
     return response.json();
