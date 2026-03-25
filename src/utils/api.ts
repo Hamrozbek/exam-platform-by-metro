@@ -2,21 +2,22 @@ const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const getTokens = () => ({
     access: localStorage.getItem("access_token"),
-    refresh: localStorage.getItem("refresh_token"),
 });
 
 const getFullUrl = (endpoint: string) => {
+    // BASE_URL oxiridagi slashni olib tashlaymiz
     const cleanBase = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+    // Endpoint boshidagi slashni olib tashlaymiz
     let cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
 
-    if (!cleanEndpoint.endsWith('/') && !cleanEndpoint.includes('.')) {
+    // Django uchun oxiriga slash qo'shamiz
+    if (!cleanEndpoint.endsWith('/')) {
         cleanEndpoint += '/';
     }
 
     return `${cleanBase}/${cleanEndpoint}`;
 };
 
-// 1. JSON so'rovlar uchun
 export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     const { access } = getTokens();
     const fullUrl = getFullUrl(endpoint);
@@ -31,41 +32,13 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
 
     if (response.status === 401) {
         localStorage.clear();
-        if (window.location.pathname !== '/login') window.location.href = "/login";
-        throw new Error("Sessiya muddati tugadi");
-    }
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || errorData.message || "Xatolik yuz berdi");
-    }
-
-    return response.json();
-};
-
-// 2. Fayl yuklash uchun (MANA SHU FUNKSIYA ETISHMAYOTGAN EDI)
-export const apiUpload = async (endpoint: string, formData: FormData) => {
-    const { access } = getTokens();
-    const fullUrl = getFullUrl(endpoint);
-
-    const response = await fetch(fullUrl, {
-        method: "POST",
-        headers: {
-            ...(access && { Authorization: `Bearer ${access}` }),
-            // Content-Type bu yerda yozilmaydi, fetch o'zi boundary qo'shadi
-        },
-        body: formData,
-    });
-
-    if (response.status === 401) {
-        localStorage.clear();
         window.location.href = "/login";
         throw new Error("Sessiya muddati tugadi");
     }
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || errorData.message || "Fayl yuklashda xatolik");
+        throw new Error(errorData.detail || errorData.message || "Xatolik yuz berdi");
     }
 
     return response.json();
