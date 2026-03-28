@@ -6,7 +6,7 @@ import {
 import {
   LogoutOutlined, CheckCircleOutlined, CloseCircleOutlined,
   ExclamationCircleOutlined, FileTextOutlined,
-  ClockCircleOutlined, WarningOutlined,
+  ClockCircleOutlined, WarningOutlined, MinusCircleOutlined,
 } from '@ant-design/icons';
 import { toast } from 'sonner';
 
@@ -24,24 +24,35 @@ interface CheckInData {
   full_name: string;
   exam: number;
   exam_title: string;
-  exam_duration?: number;
-  duration?: number;
+  exam_duration?: number;   // AttendanceSerializer dan keladi
+  duration?: number;        // fallback
   status: string;
   ip_address: string;
   created_at: string;
 }
 
+interface QuestionDetail {
+  question_id: number;
+  selected_option_id: number | null;
+  correct_option_id: number | null;
+  is_correct: boolean;
+}
+
 interface SubmitResult {
-  score?: number;
-  total?: number;
-  correct?: number;
-  wrong?: number;
-  passed?: boolean;
+  message?: string;
+  total_questions?: number;
+  correct_answers?: number;
+  wrong_answers?: number;
+  skipped_questions?: number;
+  passing_score?: number;
+  percentage?: number;
+  is_passed?: boolean;
+  question_details?: QuestionDetail[];
   [key: string]: unknown;
 }
 
-// ─── API helper — token bloklangandan keyin 401 ni maxsus handle qilamiz ───────
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api/v1';
+// ─── API helper ───────────────────────────────────────────────────────────────
+const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://127.0.0.1:8000/api/v1';
 
 const getToken = () => localStorage.getItem('access_token') || '';
 
@@ -59,26 +70,19 @@ const apiFetch = async (
     },
   });
 
-  // 401 — submit dan keyin token bloklanadi, bu normal holat
   if (res.status === 401) {
-    if (ignoreUnauthorized) {
-      // 401 ni xato sifatida ko'tarmay, null qaytaramiz
-      return null;
-    }
+    if (ignoreUnauthorized) return null;
     localStorage.clear();
     window.location.href = '/login';
     throw new Error('Unauthorized');
   }
-
   if (res.status === 204) return null;
 
   const data = await res.json();
-
   if (!res.ok) {
-    console.error('Server xatosi:', data);
-    throw Object.assign(new Error(JSON.stringify(data)), { data });
+    const msg = data?.error || data?.detail || data?.message || JSON.stringify(data);
+    throw new Error(msg);
   }
-
   return data;
 };
 
@@ -139,8 +143,7 @@ const ExamInner: React.FC = () => {
   // ── Check-in ────────────────────────────────────────────────────────────────
   useEffect(() => {
     const init = async () => {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
+      if (!localStorage.getItem('access_token')) {
         toast.error('Token topilmadi!');
         setTimeout(() => { window.location.href = '/login'; }, 1200);
         return;
@@ -148,16 +151,19 @@ const ExamInner: React.FC = () => {
       try {
         const data: CheckInData = await apiFetch('/attendance/check-in/', { method: 'POST' });
         setCheckIn(data);
+
+        // exam_duration backenddan keladi (AttendanceSerializer ga qo'shildi)
         const dur = data.exam_duration ?? data.duration;
         if (dur && dur > 0) setTimeLeft(dur * 60);
 
-        if (data.status === 'TUGALLANGAN' || data.status === 'COMPLETED') {
+        if (data.status === 'TUGALLANGAN' || data.status === 'COMPLETED' || data.status === 'TUGATDI') {
           setScreen('already-done');
         } else {
           setScreen('start');
         }
-      } catch {
-        toast.error("Kirish ma'lumotlari yuklanmadi!");
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Kirish xatoligi';
+        toast.error(msg);
         setScreen('start');
       } finally {
         setPageLoading(false);
@@ -166,12 +172,11 @@ const ExamInner: React.FC = () => {
     init();
   }, []);
 
-  // ── Submit (faqat BIR MARTA chaqiriladi) ────────────────────────────────────
+  // ── Submit ───────────────────────────────────────────────────────────────────
   const doSubmit = useCallback(async (
     currentAnswers: Record<number, number>,
     currentAttemptId: number | null
   ) => {
-    // Ikki marta submit bo'lmasligi uchun guard
     if (autoSubmittedRef.current) return;
     autoSubmittedRef.current = true;
 
@@ -181,27 +186,24 @@ const ExamInner: React.FC = () => {
     const payload = {
       attempt_id: currentAttemptId,
       answers: Object.entries(currentAnswers).map(([q_id, opt_id]) => ({
-        question: Number(q_id),
-        selected_option: Number(opt_id),
+        question_id: Number(q_id),
+        option_id: Number(opt_id),
       })),
     };
 
     try {
-      // ignoreUnauthorized=true — submit qilingach token bloklanadi, 401 normal
       const result = await apiFetch(
         '/results/submit/',
         { method: 'POST', body: JSON.stringify(payload) },
-        true  // ← 401 ni xato sifatida ko'tarmaydi
+        true   // 401 — submit dan keyin token bloklanadi, bu normal
       );
-
-      // result null bo'lishi mumkin (401 kelsa) — bu ham muvaffaqiyat (token bloklandi)
-      setSubmitResult(result as SubmitResult ?? {});
+      setSubmitResult((result as SubmitResult) ?? {});
       setScreen('result');
       toast.success('Test muvaffaqiyatli yakunlandi!');
     } catch (e: unknown) {
-      // Boshqa xato bo'lsa (400, 500) — baribir natija ekraniga o'tamiz
       console.error('Submit xato:', e);
       toast.error('Javoblar yuborildi, lekin natija yuklanmadi.');
+      setSubmitResult({});
       setScreen('result');
     } finally {
       setSubmitLoading(false);
@@ -213,7 +215,7 @@ const ExamInner: React.FC = () => {
     if (timerRef.current) clearInterval(timerRef.current);
     setTimeLeft(seconds);
     timerRef.current = setInterval(() => {
-      setTimeLeft(prev => {
+      setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timerRef.current!);
           timerRef.current = null;
@@ -233,32 +235,33 @@ const ExamInner: React.FC = () => {
     if (!checkIn) return;
     setPageLoading(true);
     try {
-      // POST /results/start/ → { exam_id: <id> }
       const startResp = await apiFetch('/results/start/', {
         method: 'POST',
         body: JSON.stringify({ exam_id: checkIn.exam }),
       });
 
-      // attempt_id ni saqlash — submit uchun kerak
-      const newAttemptId = startResp?.id ?? startResp?.attempt_id ?? startResp?.attempt ?? null;
+      // attempt_id ni to'g'ri olish
+      const newAttemptId = startResp?.attempt_id ?? startResp?.id ?? null;
       setAttemptId(newAttemptId);
       attemptIdRef.current = newAttemptId;
 
       // Savollarni olish
       const raw = await apiFetch('/exams/my-questions/');
       const list: Question[] = (Array.isArray(raw) ? raw : raw?.results ?? [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((q: any) => ({
+        .map((q: { id: number; text?: string; question?: string; options?: { id: number; text?: string; option?: string }[]; choices?: { id: number; text?: string; option?: string }[] }) => ({
           id: q.id,
           text: q.text ?? q.question ?? 'Savol yo\'q',
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          options: (q.options ?? q.choices ?? []).map((o: any) => ({
+          options: (q.options ?? q.choices ?? []).map((o) => ({
             id: o.id,
             text: o.text ?? o.option ?? 'Variant yo\'q',
           })),
         }));
 
-      if (!list.length) { toast.error('Savollar topilmadi!'); setPageLoading(false); return; }
+      if (!list.length) {
+        toast.error('Savollar topilmadi!');
+        setPageLoading(false);
+        return;
+      }
 
       setQuestions(list);
       setAnswers({});
@@ -266,7 +269,7 @@ const ExamInner: React.FC = () => {
       autoSubmittedRef.current = false;
       setScreen('exam');
 
-      const dur = checkIn.exam_duration ?? checkIn.duration;
+      const dur = checkIn.exam_duration ?? checkIn.duration ?? (startResp?.duration);
       startTimer(dur && dur > 0 ? dur * 60 : DEFAULT_DURATION);
       toast.success(`Test boshlandi — ${list.length} ta savol`);
     } catch (e: unknown) {
@@ -299,6 +302,11 @@ const ExamInner: React.FC = () => {
   const timeBg = timeLeft <= 60 ? 'bg-red-500/10 border-red-500/30'
     : timeLeft <= 300 ? 'bg-yellow-500/10 border-yellow-500/30'
       : 'bg-slate-800/50 border-slate-700';
+
+  // Natijalar uchun yordamchi
+  const correctPct = submitResult?.total_questions
+    ? Math.round(((submitResult.correct_answers ?? 0) / submitResult.total_questions) * 100)
+    : submitResult?.percentage ?? 0;
 
   return (
     <Layout style={{ minHeight: '100vh', backgroundColor: '#020617' }}>
@@ -439,7 +447,7 @@ const ExamInner: React.FC = () => {
                   <Button type="primary" onClick={handleManualSubmit}
                     loading={submitLoading} disabled={answeredCount === 0}
                     className="bg-blue-600 border-none rounded-xl font-semibold shrink-0 h-9 px-4">
-                    Yuborish
+                    Yakunlash
                   </Button>
                 </div>
                 {timeLeft <= 60 && timeLeft > 0 && (
@@ -479,88 +487,192 @@ const ExamInner: React.FC = () => {
               <Button type="primary" size="large" onClick={handleManualSubmit}
                 loading={submitLoading} disabled={answeredCount === 0}
                 className="w-full h-14 text-base font-bold rounded-2xl bg-blue-600 border-none shadow-lg">
-                Javoblarni Yuborish ({answeredCount}/{questions.length})
+                Testni Yakunlash ({answeredCount}/{questions.length})
               </Button>
             </div>
           )}
 
           {/* ── NATIJA EKRANI ───────────────────────────────────────────── */}
           {screen === 'result' && (
-            <div className="bg-[#0f172a] border border-slate-800 p-8 sm:p-12 rounded-3xl text-center shadow-2xl relative overflow-hidden">
-              <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${submitResult?.passed !== false ? 'from-green-500 to-emerald-400' : 'from-red-500 to-rose-400'
-                }`} />
+            <div className="space-y-4 pb-8">
 
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 ${submitResult?.passed !== false ? 'bg-green-500/10' : 'bg-red-500/10'
-                }`}>
-                {submitResult?.passed !== false
-                  ? <CheckCircleOutlined className="text-5xl text-green-400" />
-                  : <CloseCircleOutlined className="text-5xl text-red-400" />
-                }
-              </div>
+              {/* Natija Header Card */}
+              <div className="bg-[#0f172a] border border-slate-800 p-6 sm:p-10 rounded-3xl text-center shadow-2xl relative overflow-hidden">
+                <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${submitResult?.is_passed ? 'from-green-500 to-emerald-400' : 'from-red-500 to-rose-400'}`} />
 
-              <Title level={2} className="!text-white mb-1">Test Yakunlandi!</Title>
-              {checkIn && (
-                <p className="text-slate-400 mb-6 text-sm">
-                  <span className="text-white font-medium">{checkIn.full_name}</span>
-                  {' — '}
-                  <span className="text-blue-400">{checkIn.exam_title}</span>
-                </p>
-              )}
-
-              {submitResult && Object.keys(submitResult).length > 0 && (
-                <div className="flex justify-center gap-3 mb-6 flex-wrap">
-                  {submitResult.score !== undefined && (
-                    <div className="bg-blue-500/10 p-5 rounded-2xl border border-blue-500/20 flex-1 min-w-[80px]">
-                      <div className="text-3xl font-black text-blue-400">{submitResult.score}%</div>
-                      <div className="text-slate-400 text-xs mt-1 uppercase tracking-wider">Ball</div>
-                    </div>
-                  )}
-                  {submitResult.correct !== undefined && (
-                    <div className="bg-green-500/10 p-5 rounded-2xl border border-green-500/20 flex-1 min-w-[80px]">
-                      <div className="text-3xl font-black text-green-400">{submitResult.correct}</div>
-                      <div className="text-slate-400 text-xs mt-1 uppercase tracking-wider">To'g'ri</div>
-                    </div>
-                  )}
-                  {submitResult.wrong !== undefined && (
-                    <div className="bg-red-500/10 p-5 rounded-2xl border border-red-500/20 flex-1 min-w-[80px]">
-                      <div className="text-3xl font-black text-red-400">{submitResult.wrong}</div>
-                      <div className="text-slate-400 text-xs mt-1 uppercase tracking-wider">Xato</div>
-                    </div>
-                  )}
-                  {submitResult.total !== undefined && (
-                    <div className="bg-slate-800/60 p-5 rounded-2xl border border-slate-700 flex-1 min-w-[80px]">
-                      <div className="text-3xl font-black text-white">{submitResult.total}</div>
-                      <div className="text-slate-400 text-xs mt-1 uppercase tracking-wider">Jami</div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {submitResult?.score !== undefined && (
-                <div className="flex justify-center mb-6">
-                  <Progress type="circle" percent={submitResult.score as number} size={100}
-                    strokeColor={submitResult.passed !== false ? '#22c55e' : '#ef4444'}
-                    trailColor="#1e293b"
-                    format={p => <span className="text-white font-bold text-lg">{p}%</span>}
-                  />
-                </div>
-              )}
-
-              {submitResult?.passed !== undefined && (
-                <div className={`inline-flex items-center gap-2 px-8 py-3 rounded-2xl mb-8 font-bold text-base ${submitResult.passed
-                  ? 'bg-green-500/10 border border-green-500/30 text-green-400'
-                  : 'bg-red-500/10 border border-red-500/30 text-red-400'
-                  }`}>
-                  {submitResult.passed
-                    ? <><CheckCircleOutlined /> Siz testdan muvaffaqiyatli o'tdingiz!</>
-                    : <><CloseCircleOutlined /> Afsuski, testdan o'ta olmadingiz</>
+                {/* Icon */}
+                <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5 ${submitResult?.is_passed ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                  {submitResult?.is_passed
+                    ? <CheckCircleOutlined className="text-5xl text-green-400" />
+                    : <CloseCircleOutlined className="text-5xl text-red-400" />
                   }
                 </div>
+
+                <Title level={2} className="!text-white mb-1">Test Yakunlandi!</Title>
+                {checkIn && (
+                  <p className="text-slate-400 mb-6 text-sm">
+                    <span className="text-white font-medium">{checkIn.full_name}</span>
+                    {' — '}
+                    <span className="text-blue-400">{checkIn.exam_title}</span>
+                  </p>
+                )}
+
+                {/* Statistika kartalar */}
+                <div className="flex justify-center gap-3 mb-6 flex-wrap">
+                  <div className="bg-green-500/10 p-4 sm:p-5 rounded-2xl border border-green-500/20 flex-1 min-w-[75px]">
+                    <div className="text-3xl font-black text-green-400">{submitResult?.correct_answers ?? 0}</div>
+                    <div className="text-slate-400 text-[10px] mt-1 uppercase tracking-wider">To'g'ri</div>
+                  </div>
+                  <div className="bg-red-500/10 p-4 sm:p-5 rounded-2xl border border-red-500/20 flex-1 min-w-[75px]">
+                    <div className="text-3xl font-black text-red-400">{submitResult?.wrong_answers ?? 0}</div>
+                    <div className="text-slate-400 text-[10px] mt-1 uppercase tracking-wider">Xato</div>
+                  </div>
+                  {(submitResult?.skipped_questions ?? 0) > 0 && (
+                    <div className="bg-yellow-500/10 p-4 sm:p-5 rounded-2xl border border-yellow-500/20 flex-1 min-w-[75px]">
+                      <div className="text-3xl font-black text-yellow-400">{submitResult?.skipped_questions}</div>
+                      <div className="text-slate-400 text-[10px] mt-1 uppercase tracking-wider">O'tkazildi</div>
+                    </div>
+                  )}
+                  <div className="bg-slate-800/60 p-4 sm:p-5 rounded-2xl border border-slate-700 flex-1 min-w-[75px]">
+                    <div className="text-3xl font-black text-white">{submitResult?.total_questions ?? 0}</div>
+                    <div className="text-slate-400 text-[10px] mt-1 uppercase tracking-wider">Jami</div>
+                  </div>
+                </div>
+
+                {/* Progress doira */}
+                <div className="flex justify-center mb-5">
+                  <Progress type="circle" percent={correctPct} size={100}
+                    strokeColor={submitResult?.is_passed ? '#22c55e' : '#ef4444'}
+                    trailColor="#1e293b"
+                    format={(p?: number) => <span className="text-white font-bold text-base">{p ?? 0}%</span>}
+                  />
+                </div>
+
+                {/* O'tdi / O'tmadi badge */}
+                {submitResult?.is_passed !== undefined && (
+                  <div className={`inline-flex items-center gap-2 px-7 py-2.5 rounded-2xl mb-6 font-bold text-sm ${submitResult.is_passed
+                    ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                    : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                    }`}>
+                    {submitResult.is_passed
+                      ? <><CheckCircleOutlined /> Siz testdan muvaffaqiyatli o'tdingiz!</>
+                      : <><CloseCircleOutlined /> Afsuski, testdan o'ta olmadingiz</>
+                    }
+                  </div>
+                )}
+
+                {/* Minimal o'tish bali */}
+                {submitResult?.passing_score !== undefined && (
+                  <p className="text-slate-500 text-xs mb-6">
+                    O'tish uchun minimal: <span className="text-white font-bold">{submitResult.passing_score}</span> ta to'g'ri javob
+                  </p>
+                )}
+
+                <Button type="primary" danger size="large" onClick={handleLogout}
+                  className="h-12 px-14 rounded-xl font-bold w-full max-w-xs block mx-auto">
+                  Tanishdim — Chiqish
+                </Button>
+              </div>
+
+              {/* ── Batafsil Tahlil ─────────────────────────────────────── */}
+              {submitResult?.question_details && submitResult.question_details.length > 0 && (
+                <div className="bg-[#0f172a] border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+                  {/* Sarlavha */}
+                  <div className="px-5 py-4 border-b border-slate-800 flex items-center gap-2">
+                    <FileTextOutlined className="text-blue-400" />
+                    <span className="text-white font-bold">Batafsil Tahlil</span>
+                    <div className="ml-auto flex items-center gap-3 text-xs">
+                      <span className="flex items-center gap-1 text-green-400 font-bold">
+                        <CheckCircleOutlined />
+                        {submitResult.question_details.filter(d => d.is_correct).length} to'g'ri
+                      </span>
+                      <span className="flex items-center gap-1 text-red-400 font-bold">
+                        <CloseCircleOutlined />
+                        {submitResult.question_details.filter(d => !d.is_correct && d.selected_option_id !== null).length} xato
+                      </span>
+                      <span className="flex items-center gap-1 text-yellow-400 font-semibold">
+                        <MinusCircleOutlined />
+                        {submitResult.question_details.filter(d => d.selected_option_id === null).length} o'tkazildi
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Savollar ro'yxati */}
+                  <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto">
+                    {submitResult.question_details.map((detail, idx) => {
+                      const q = questions.find(q => q.id === detail.question_id);
+                      if (!q) return null;
+
+                      const selectedOpt = q.options.find(o => o.id === detail.selected_option_id);
+                      const correctOpt = q.options.find(o => o.id === detail.correct_option_id);
+                      const isSkipped = detail.selected_option_id === null;
+
+                      return (
+                        <div key={idx} className={`p-4 rounded-2xl border transition-all ${detail.is_correct
+                          ? 'bg-green-500/5 border-green-500/20'
+                          : isSkipped
+                            ? 'bg-slate-800/30 border-slate-700/50'
+                            : 'bg-red-500/5 border-red-500/20'
+                          }`}>
+                          {/* Savol matni */}
+                          <div className="flex items-start gap-3 mb-3">
+                            <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${detail.is_correct
+                              ? 'bg-green-500 text-white'
+                              : isSkipped
+                                ? 'bg-slate-700 text-slate-400'
+                                : 'bg-red-500 text-white'
+                              }`}>
+                              {idx + 1}
+                            </span>
+                            <p className="text-white text-sm font-medium leading-relaxed flex-1">{q.text}</p>
+                          </div>
+
+                          {/* Javob ko'rsatish */}
+                          <div className="space-y-2 ml-10">
+                            {/* Xodimning javobi */}
+                            {isSkipped ? (
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs bg-slate-800/60 border border-slate-700/60 text-slate-400">
+                                <MinusCircleOutlined className="shrink-0" />
+                                <span>O'tkazib yuborildi</span>
+                              </div>
+                            ) : (
+                              <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs ${detail.is_correct
+                                ? 'bg-green-500/10 border border-green-500/30 text-green-300'
+                                : 'bg-red-500/10 border border-red-500/30 text-red-300'
+                                }`}>
+                                {detail.is_correct
+                                  ? <CheckCircleOutlined className="shrink-0 text-green-400" />
+                                  : <CloseCircleOutlined className="shrink-0 text-red-400" />
+                                }
+                                <span>
+                                  <strong>Sizning javobingiz: </strong>
+                                  {selectedOpt?.text ?? '—'}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* To'g'ri javob — faqat xato yoki o'tkazilganda */}
+                            {!detail.is_correct && correctOpt && (
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs bg-green-500/10 border border-green-500/30 text-green-300">
+                                <CheckCircleOutlined className="shrink-0 text-green-400" />
+                                <span>
+                                  <strong>To'g'ri javob: </strong>
+                                  {correctOpt.text}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
 
+              {/* Pastki chiqish tugmasi */}
               <Button type="primary" danger size="large" onClick={handleLogout}
-                className="h-12 px-12 rounded-xl font-bold w-full max-w-xs block mx-auto">
-                Tugatdim — Chiqish
+                className="w-full h-14 text-base font-bold rounded-2xl border-none shadow-lg">
+                Tizimdan Chiqish
               </Button>
             </div>
           )}
