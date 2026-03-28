@@ -1,5 +1,5 @@
 const BASE_URL = import.meta.env.PROD
-    ? "/api/api/v1"
+    ? "/backend/api/v1"
     : "http://13.60.163.115:8000/api/v1";
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
