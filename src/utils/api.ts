@@ -1,8 +1,6 @@
-const BASE_URL = import.meta.env.PROD
-    ? "/backend/api/v1"
-    : "http://13.60.163.115:8000/api/v1";
-// ─── Helpers ────────────────────────────────────────────────────────────────
+const BASE_URL = import.meta.env.VITE_API_URL || "http://13.60.163.115:8000/api/v1";
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
 export const getTokens = () => ({
     access: localStorage.getItem("access_token"),
     refresh: localStorage.getItem("refresh_token"),
