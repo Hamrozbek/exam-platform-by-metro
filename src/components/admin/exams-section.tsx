@@ -48,8 +48,8 @@ const ExamsSection: React.FC = () => {
         apiFetch('/exams/'),
         apiFetch('/departments/'),
       ]);
-      setExams(exmData || []);
-      setDepartments(deptData || []);
+      setExams(exmData?.results || (Array.isArray(exmData) ? exmData : []));
+      setDepartments(deptData?.results || (Array.isArray(deptData) ? deptData : []));
     } catch {
       toast.error("Ma'lumotlarni yuklashda xatolik");
     } finally {

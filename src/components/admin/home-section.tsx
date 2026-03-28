@@ -39,20 +39,56 @@ const HomeSection: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [mgrs, emps, exms, deps] = await Promise.all([
+      const [mgrsData, empsData, exmsData, depsData, resData] = await Promise.all([
         apiFetch('/users/managers/'),
         apiFetch('/users/employees/'),
         apiFetch('/exams/'),
         apiFetch('/departments/'),
+        apiFetch('/results/all/'),
       ]);
+
+      const mgrs = mgrsData?.results || (Array.isArray(mgrsData) ? mgrsData : []);
+      const empsList = empsData?.results || (Array.isArray(empsData) ? empsData : []);
+      const exms = exmsData?.results || (Array.isArray(exmsData) ? exmsData : []);
+      const deps = depsData?.results || (Array.isArray(depsData) ? depsData : []);
+      const resList = resData?.results || (Array.isArray(resData) ? resData : []);
+
       setStats({
-        managers: Array.isArray(mgrs) ? mgrs.length : 0,
-        employees: Array.isArray(emps) ? emps.length : 0,
-        exams: Array.isArray(exms) ? exms.length : 0,
-        departments: Array.isArray(deps) ? deps.length : 0,
+        managers: mgrs.length,
+        employees: empsList.length,
+        exams: exms.length,
+        departments: deps.length,
       });
-      setEmployees(emps || []);
-      setDepartments(deps || []);
+
+      // Combine data for better frontend handling
+      const processedEmployees = empsList.map((emp: any) => {
+        const userExams = resList.filter((r: any) => r?.user?.username === emp.username).map((r: any) => ({
+          title: r?.exam?.title || '_',
+          date: r?.start_time ? new Date(r.start_time).toLocaleString() : '_',
+          score: r?.total_questions ? Math.round((r.correct_answers / r.total_questions) * 100) : 0,
+          correct: r.correct_answers,
+          wrong: r.wrong_answers,
+          is_passed: r.is_passed
+        }));
+
+        // Lookup department ID for filtering
+        const depObj = deps.find((d: any) => d.name === emp.department);
+        
+        // Lookup manager for this department
+        const mgrObj = mgrs.find((m: any) => m.department === emp.department);
+        const managerName = mgrObj ? `${mgrObj.first_name} ${mgrObj.last_name}`.trim() : 'Tayinlanmagan';
+
+        return { 
+          ...emp, 
+          exams: userExams,
+          department_id: depObj?.id || null,
+          department_name: emp.department || 'Bo\'limsiz',
+          manager_name: managerName
+        };
+      });
+
+      setEmployees(processedEmployees);
+      setDepartments(deps);
     } catch {
       toast.error("Ma'lumotlarni yangilashda xatolik yuz berdi");
     } finally {
@@ -72,7 +108,7 @@ const HomeSection: React.FC = () => {
     const matchesSearch =
       fullName.includes(searchText.toLowerCase()) ||
       emp.username?.toLowerCase().includes(searchText.toLowerCase());
-    const matchesDep = selectedDep ? emp.department === selectedDep : true;
+    const matchesDep = selectedDep ? emp.department_id === selectedDep : true;
     return matchesSearch && matchesDep;
   });
 
@@ -389,17 +425,21 @@ const HomeSection: React.FC = () => {
                       <div className="flex justify-between items-center">
                         <div className="min-w-0">
                           <h4 className="text-slate-200 font-bold text-sm m-0 truncate group-hover:text-blue-400 transition-colors">{exam.title}</h4>
-                          <p className="text-slate-500 text-[10px] mt-1">{exam.date || 'Sana ko\'rsatilmagan'}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                             <p className="text-slate-500 text-[10px] m-0">{exam.date || '_'}</p>
+                             <span className="text-slate-600 text-[10px]">•</span>
+                             <span className="text-slate-500 text-[10px]">{exam.correct} to'g'ri / {exam.wrong} xato</span>
+                          </div>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <span className={`text-sm font-black ${exam.score >= 35 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          <span className={`text-sm font-black ${exam.is_passed ? 'text-emerald-400' : 'text-red-400'}`}>
                             {exam.score}%
                           </span>
                           <Tag
-                            color={exam.score >= 35 ? 'success' : 'error'}
+                            color={exam.is_passed ? 'success' : 'error'}
                             className="m-0 border-none text-[9px] px-2 py-0 rounded-full font-bold uppercase"
                           >
-                            {exam.score >= 35 ? 'O\'tdi' : 'Yiqildi'}
+                            {exam.is_passed ? 'O\'tdi' : 'Yiqildi'}
                           </Tag>
                         </div>
                       </div>

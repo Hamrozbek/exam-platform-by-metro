@@ -41,12 +41,28 @@ const ManagersSection: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [mgrData, deptData] = await Promise.all([
+      const [mgrData, deptData, empData] = await Promise.all([
         apiFetch('/users/managers/'),
         apiFetch('/departments/'),
+        apiFetch('/users/employees/'),
       ]);
-      setManagers(mgrData || []);
-      setDepartments(deptData || []);
+
+      const managersList = mgrData?.results || (Array.isArray(mgrData) ? mgrData : []);
+      const departmentsList = deptData?.results || (Array.isArray(deptData) ? deptData : []);
+      const employeesList = empData?.results || (Array.isArray(empData) ? empData : []);
+
+      // Map students to managers based on department
+      const processedManagers = managersList.map((mgr: any) => {
+        const students = employeesList.filter((emp: any) => emp.department === mgr.department);
+        return {
+          ...mgr,
+          students,
+          students_count: students.length
+        };
+      });
+
+      setManagers(processedManagers);
+      setDepartments(departmentsList);
     } catch {
       toast.error("Ma'lumotlarni yuklashda xatolik");
     } finally {

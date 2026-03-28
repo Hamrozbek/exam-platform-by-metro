@@ -35,7 +35,7 @@ const DepartmentsSection: React.FC = () => {
         try {
             setLoading(true);
             const data = await apiFetch('/departments/');
-            setDepartments(data);
+            setDepartments(data?.results || (Array.isArray(data) ? data : []));
         } catch {
             toast.error("Ma'lumotlarni yuklashda xatolik");
         } finally {

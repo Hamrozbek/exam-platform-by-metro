@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || "/api";
+const BASE_URL = import.meta.env.VITE_API_URL || "https://semiofficial-desirae-shamefacedly.ngrok-free.dev/api/v1";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -37,6 +37,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     const headers: HeadersInit = {
         "Content-Type": "application/json",
         "X-CSRFToken": getCsrfToken(),
+        "ngrok-skip-browser-warning": "69420",
         ...getAuthHeader(endpoint),
         ...options.headers,
     };
@@ -60,6 +61,7 @@ export const apiUpload = async (endpoint: string, formData: FormData) => {
         method: "POST",
         headers: {
             "X-CSRFToken": getCsrfToken(),
+            "ngrok-skip-browser-warning": "69420",
             ...getAuthHeader(endpoint),
         },
         body: formData,

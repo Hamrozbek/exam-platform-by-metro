@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Button, ConfigProvider, theme, Modal, Drawer } from 'antd';
 import { useSearchParams } from 'react-router-dom';
+import { DepartmentsSection, ExamsSection, HomeSection, ManagersSection, UsersSection } from '../../components/admin';
+import { TestResults } from '../../components/manager';
 import {
   HomeOutlined, TeamOutlined, UserOutlined,
   FileTextOutlined, LogoutOutlined, ExclamationCircleOutlined,
-  ApartmentOutlined, MenuOutlined, MenuFoldOutlined, MenuUnfoldOutlined
+  ApartmentOutlined, MenuOutlined, MenuFoldOutlined, MenuUnfoldOutlined, FileDoneOutlined
 } from '@ant-design/icons';
 import { toast } from 'sonner';
-import { DepartmentsSection, ExamsSection, HomeSection, ManagersSection, UsersSection } from '../../components/admin';
 
 const { Sider, Content } = Layout;
 
@@ -49,6 +50,7 @@ const Superadmindashboard: React.FC = () => {
     { key: 'managers', icon: <TeamOutlined />, label: 'Managerlar' },
     { key: 'users', icon: <UserOutlined />, label: 'Foydalanuvchilar' },
     { key: 'exams', icon: <FileTextOutlined />, label: 'Testlar' },
+    { key: 'results', icon: <FileDoneOutlined />, label: 'Natijalar' },
   ];
 
   const activeLabel = menuItems.find(m => m.key === activeKey)?.label || 'Bosh sahifa';
@@ -239,6 +241,7 @@ const Superadmindashboard: React.FC = () => {
                 {activeKey === 'managers' && <ManagersSection />}
                 {activeKey === 'users' && <UsersSection />}
                 {activeKey === 'exams' && <ExamsSection />}
+                {activeKey === 'results' && <TestResults />}
               </div>
             </div>
           </Content>

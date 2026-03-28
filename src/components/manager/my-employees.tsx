@@ -34,13 +34,13 @@ const MyEmployees: React.FC = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const data = await apiFetch('/results/manager-report/');
+            const data = await apiFetch('/users/employees/');
 
             // 🔥 MANA SHU YERDA KONSOLGA CHIQARAMIZ
-            console.log("🔥 BACKENDDAN KELGAN MA'LUMOT:", data);
+            console.log("🔥 MY EMPLOYEES DATA:", data);
 
-            if (data && data.employees) {
-                setEmployees(data.employees || []);
+            if (data && data.results) {
+                setEmployees(data.results || []);
             } else if (Array.isArray(data)) {
                 setEmployees(data);
             } else {

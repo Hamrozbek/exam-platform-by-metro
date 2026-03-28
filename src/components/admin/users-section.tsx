@@ -48,8 +48,8 @@ const UsersSection: React.FC = () => {
                 apiFetch('/users/employees/'),
                 apiFetch('/exams/'),
             ]);
-            setEmployees(empData || []);
-            setExams(exmData || []);
+            setEmployees(empData?.results || (Array.isArray(empData) ? empData : []));
+            setExams(exmData?.results || (Array.isArray(exmData) ? exmData : []));
         } catch {
             toast.error("Ma'lumotlarni yuklashda xatolik yuz berdi");
         } finally {

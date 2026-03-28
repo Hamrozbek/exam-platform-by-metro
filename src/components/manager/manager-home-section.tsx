@@ -33,47 +33,51 @@ const ManagerHomeSection: React.FC = () => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // --- KONSOLGA CHIQARILGAN QISM ---
+    // --- FETCH DATA ---
     const fetchData = async () => {
         setLoading(true);
         try {
-            const data = await apiFetch('/results/manager-report/');
+            const [empsData, resData] = await Promise.all([
+                apiFetch('/users/employees/'),
+                apiFetch('/results/all/')
+            ]);
 
-            // 🔥 MANA SHU YERDA KONSOLGA CHIQARAMIZ!
-            console.log("🔥 MANAGER REPORT BACKENDDAN KELDI:", data);
+            const empList = empsData?.results || (Array.isArray(empsData) ? empsData : []);
+            const resList = resData?.results || (Array.isArray(resData) ? resData : []);
 
-            if (data && data.employees) {
-                setEmployees(data.employees || []);
-                setStats({
-                    employees: data.stats?.employees ?? (data.employees?.length || 0),
-                    averageScore: data.stats?.averageScore ?? 0,
-                    activeExams: data.stats?.activeExams ?? 0
-                });
-            }
-            else if (Array.isArray(data)) {
-                setEmployees(data);
+            console.log("🔥 MANAGER EMPLOYEES:", empList);
+            console.log("🔥 MANAGER RESULTS:", resList);
 
-                let totalScore = 0;
-                let examsCount = 0;
-                let activeExamsCount = 0;
+            // Combine employees with their exams
+            const processedEmployees = empList.map((emp: any) => {
+                const userExams = resList.filter((r: any) => r?.user?.username === emp.username).map((r: any) => ({
+                    title: r?.exam?.title || '_',
+                    date: r?.start_time ? new Date(r.start_time).toLocaleString() : '_',
+                    score: r?.total_questions ? Math.round((r.correct_answers / r.total_questions) * 100) : 0,
+                    correct: r.correct_answers,
+                    wrong: r.wrong_answers,
+                    is_passed: r.is_passed
+                }));
+                return { ...emp, exams: userExams };
+            });
 
-                data.forEach((emp: any) => {
-                    if (emp?.exams && emp.exams.length > 0) {
-                        activeExamsCount++;
-                        emp.exams.forEach((ex: any) => {
-                            totalScore += ex?.score || 0;
-                            examsCount++;
-                        });
-                    }
-                });
+            setEmployees(processedEmployees);
 
-                const avgScore = examsCount > 0 ? Math.round(totalScore / examsCount) : 0;
-                setStats({
-                    employees: data.length,
-                    averageScore: avgScore,
-                    activeExams: activeExamsCount
-                });
-            }
+            let totalScore = 0;
+            let activeExamsCount = 0;
+            
+            resList.forEach((r: any) => {
+                const score = r?.total_questions ? Math.round((r.correct_answers / r.total_questions) * 100) : 0;
+                totalScore += score;
+                activeExamsCount++;
+            });
+
+            setStats({
+                employees: empList.length,
+                averageScore: activeExamsCount > 0 ? Math.round(totalScore / activeExamsCount) : 0,
+                activeExams: empList.filter((e: any) => e.assigned_exam && e.assigned_exam !== "Test biriktirilmagan").length
+            });
+
         } catch (error) {
             toast.error("Ma'lumotlarni yuklashda xatolik yuz berdi");
         } finally {
@@ -351,15 +355,22 @@ const ManagerHomeSection: React.FC = () => {
                                         <div key={idx} className="bg-slate-900/60 border border-slate-800/50 p-4 rounded-2xl hover:border-slate-700 transition-all group">
                                             <div className="flex justify-between items-center">
                                                 <div className="min-w-0">
-                                                    <h4 className="text-slate-200 font-bold text-sm m-0 truncate group-hover:text-blue-400 transition-colors">{exam?.title || '_'}</h4>
-                                                    <p className="text-slate-500 text-[10px] mt-1 m-0">{exam?.date || '_'}</p>
+                                                    <h4 className="text-slate-200 font-bold text-sm m-0 truncate group-hover:text-blue-400 transition-colors">{exam.title}</h4>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <p className="text-slate-500 text-[10px] m-0">{exam.date || '_'}</p>
+                                                        <span className="text-slate-600 text-[10px]">•</span>
+                                                        <span className="text-slate-500 text-[10px]">{exam.correct} to'g'ri / {exam.wrong} xato</span>
+                                                    </div>
                                                 </div>
                                                 <div className="flex flex-col items-end gap-1">
-                                                    <span className={`text-sm font-black ${exam?.score >= 50 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                                        {exam?.score ?? '_'}%
+                                                    <span className={`text-sm font-black ${exam.is_passed ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {exam.score}%
                                                     </span>
-                                                    <Tag color={exam?.score >= 50 ? 'success' : 'error'} className="m-0 border-none text-[9px] px-2 py-0 rounded-full font-bold uppercase">
-                                                        {exam?.score >= 50 ? "O'tdi" : 'Yiqildi'}
+                                                    <Tag
+                                                        color={exam.is_passed ? 'success' : 'error'}
+                                                        className="m-0 border-none text-[9px] px-2 py-0 rounded-full font-bold uppercase"
+                                                    >
+                                                        {exam.is_passed ? 'O\'tdi' : 'Yiqildi'}
                                                     </Tag>
                                                 </div>
                                             </div>

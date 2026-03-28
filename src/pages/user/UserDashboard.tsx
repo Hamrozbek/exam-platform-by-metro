@@ -52,7 +52,7 @@ interface SubmitResult {
 }
 
 // ─── API helper ───────────────────────────────────────────────────────────────
-const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://127.0.0.1:8000/api/v1';
+const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'https://semiofficial-desirae-shamefacedly.ngrok-free.dev/api/v1';
 
 const getToken = () => localStorage.getItem('access_token') || '';
 
@@ -65,6 +65,7 @@ const apiFetch = async (
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': '69420',
       Authorization: `Bearer ${getToken()}`,
       ...(options.headers || {}),
     },
