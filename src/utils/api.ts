@@ -1,9 +1,6 @@
-// Agarda loyiha Production (Vercel) da bo'lsa, /api dan foydalanamiz
-// Mahalliy kompyuterda esa .env dagi URL dan foydalanamiz
 const BASE_URL = import.meta.env.PROD
-    ? "/api"
-    : (import.meta.env.VITE_API_URL || "http://13.60.163.115:8000/api/v1");
-
+    ? "/api/api/v1"
+    : "http://13.60.163.115:8000/api/v1";
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 export const getTokens = () => ({
