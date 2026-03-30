@@ -14,7 +14,6 @@ import {
 import { toast } from 'sonner';
 import { ManagerHomeSection, MyEmployees, TestResults } from '../../components/manager';
 
-
 const { Sider, Content } = Layout;
 
 const ManagerDashboard: React.FC = () => {

@@ -46,8 +46,31 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error("Server xatosi:", errorData);
-        throw new Error(errorData.error || errorData.detail || "Xatolik yuz berdi");
+
+        // Backenddan kelgan xatolik xabarini qidirish
+        let errorMessage = "Xatolik yuz berdi";
+
+        if (typeof errorData === 'string') {
+            errorMessage = errorData;
+        } else if (errorData.detail) {
+            errorMessage = errorData.detail;
+        } else if (errorData.message) {
+            errorMessage = errorData.message;
+        } else if (errorData.non_field_errors) {
+            errorMessage = Array.isArray(errorData.non_field_errors) ? errorData.non_field_errors[0] : errorData.non_field_errors;
+        } else if (errorData.error) {
+            errorMessage = errorData.error;
+        } else if (typeof errorData === 'object') {
+            const firstKey = Object.keys(errorData)[0];
+            if (firstKey) {
+                const val = errorData[firstKey];
+                errorMessage = Array.isArray(val) ? val[0] : val;
+            }
+        }
+
+        throw new Error(errorMessage);
     }
+
 
     return response.json();
 };

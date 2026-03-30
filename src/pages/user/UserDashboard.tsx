@@ -174,10 +174,7 @@ const ExamInner: React.FC = () => {
   }, []);
 
   // ── Submit ───────────────────────────────────────────────────────────────────
-  const doSubmit = useCallback(async (
-    currentAnswers: Record<number, number>,
-    currentAttemptId: number | null
-  ) => {
+  const doSubmit = useCallback(async () => {
     if (autoSubmittedRef.current) return;
     autoSubmittedRef.current = true;
 
@@ -185,8 +182,8 @@ const ExamInner: React.FC = () => {
     setSubmitLoading(true);
 
     const payload = {
-      attempt_id: currentAttemptId,
-      answers: Object.entries(currentAnswers).map(([q_id, opt_id]) => ({
+      attempt_id: attemptIdRef.current,
+      answers: Object.entries(answersRef.current).map(([q_id, opt_id]) => ({
         question_id: Number(q_id),
         option_id: Number(opt_id),
       })),
@@ -196,7 +193,7 @@ const ExamInner: React.FC = () => {
       const result = await apiFetch(
         '/results/submit/',
         { method: 'POST', body: JSON.stringify(payload) },
-        true   // 401 — submit dan keyin token bloklanadi, bu normal
+        true   // 401 — submit dan keying token bloklanadi, bu normal
       );
       setSubmitResult((result as SubmitResult) ?? {});
       setScreen('result');
@@ -218,18 +215,28 @@ const ExamInner: React.FC = () => {
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          clearInterval(timerRef.current!);
-          timerRef.current = null;
-          toast.warning('Vaqt tugadi! Test avtomatik yakunlandi.');
-          doSubmit(answersRef.current, attemptIdRef.current);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-  }, [doSubmit]);
+  }, []);
 
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+  // Avtomatik yakunlash logicasi (Vaqt tugaganda)
+  useEffect(() => {
+    if (screen === 'exam' && timeLeft === 0 && !autoSubmittedRef.current) {
+      toast.warning('Vaqt tugadi! Test avtomatik yakunlandi.');
+      doSubmit();
+    }
+  }, [timeLeft, screen, doSubmit]);
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
 
   // ── Testni boshlash ─────────────────────────────────────────────────────────
   const handleStart = async () => {
@@ -268,10 +275,9 @@ const ExamInner: React.FC = () => {
       setAnswers({});
       answersRef.current = {};
       autoSubmittedRef.current = false;
-      setScreen('exam');
-
       const dur = checkIn.exam_duration ?? checkIn.duration ?? (startResp?.duration);
       startTimer(dur && dur > 0 ? dur * 60 : DEFAULT_DURATION);
+      setScreen('exam');
       toast.success(`Test boshlandi — ${list.length} ta savol`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -281,8 +287,13 @@ const ExamInner: React.FC = () => {
     }
   };
 
-  const handleSelect = (qId: number, optId: number) =>
-    setAnswers(prev => ({ ...prev, [qId]: optId }));
+  const handleSelect = (qId: number, optId: number) => {
+    setAnswers(prev => {
+      const next = { ...prev, [qId]: optId };
+      answersRef.current = next;
+      return next;
+    });
+  };
 
   // ── Qo'lda yuborish ─────────────────────────────────────────────────────────
   const handleManualSubmit = () => {
@@ -290,7 +301,7 @@ const ExamInner: React.FC = () => {
       title: 'Testni yakunlamoqchimisiz?',
       content: `${Object.keys(answers).length}/${questions.length} ta savolga javob berdingiz. Yuborilgach o'zgartirib bo'lmaydi.`,
       okText: 'Yuborish', cancelText: 'Bekor', centered: true,
-      onOk: () => doSubmit(answersRef.current, attemptIdRef.current),
+      onOk: () => doSubmit(),
     });
   };
 
@@ -544,7 +555,7 @@ const ExamInner: React.FC = () => {
                 <div className="flex justify-center mb-5">
                   <Progress type="circle" percent={correctPct} size={100}
                     strokeColor={submitResult?.is_passed ? '#22c55e' : '#ef4444'}
-                    trailColor="#1e293b"
+                    railColor="#1e293b"
                     format={(p?: number) => <span className="text-white font-bold text-base">{p ?? 0}%</span>}
                   />
                 </div>
