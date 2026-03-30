@@ -32,10 +32,7 @@ const Login = () => {
         localStorage.setItem("access_token", data.access);
         localStorage.setItem("refresh_token", data.refresh);
 
-        // Backenddan kelgan rolni olish va tozalash
         const rawRole = (data.role || data.user_role || "USER").toUpperCase().trim();
-
-        // AGAR EMPLOYEE BO'LSA, UNI USER SIFATIDA SAQLAYMIZ (AppRouter xato bermasligi uchun)
         const finalRole = rawRole === "EMPLOYEE" ? "USER" : rawRole;
         localStorage.setItem("user_role", finalRole);
 
@@ -47,10 +44,15 @@ const Login = () => {
           } else if (rawRole === "MANAGER") {
             navigate("/manager/results");
           } else if (rawRole === "USER" || rawRole === "EMPLOYEE") {
+
+            if (data.is_registered === true) {
+              toast.error("Siz allaqachon ro'yxatdan o'tgansiz, tizimga kirish mumkin emas!");
+              localStorage.clear();
+              setLoading(false); 
+              return;
+            }
+
             navigate("/user/welcome");
-          } else {
-            console.error("Noma'lum rol:", rawRole);
-            navigate("/login");
           }
         }, 800);
       }
@@ -58,7 +60,7 @@ const Login = () => {
       console.error("Login Error Details:", error)
       toast.error(error.message || "Login yoki parol xato!")
     } finally {
-      setLoading(false)
+      setLoading(false) 
     }
   }
 

@@ -46,7 +46,7 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error("Server xatosi:", errorData);
-        throw new Error(errorData.detail || "Xatolik yuz berdi");
+        throw new Error(errorData.error || errorData.detail || "Xatolik yuz berdi");
     }
 
     return response.json();
@@ -69,7 +69,7 @@ export const apiUpload = async (endpoint: string, formData: FormData) => {
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error("Server xatosi:", errorData);
-        throw new Error(errorData.detail || "Fayl yuklashda xatolik");
+        throw new Error(errorData.error || errorData.detail || "Fayl yuklashda xatolik");
     }
 
     return response.json();
